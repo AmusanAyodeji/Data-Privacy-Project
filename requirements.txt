@@ -1,2 +1,5 @@
 openai
 python-dotenv
+fastapi[standard]
+requests
+beautifulsoup4

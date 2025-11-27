@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 import requests
 from ndpa.checker import call_policy_analyzer
+from fastapi.middleware.cors import CORSMiddleware
 
 platform_templates = {
     "kuda": {
@@ -480,6 +481,14 @@ Kind regards,
 }
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],        # Allow all origins
+    allow_methods=["*"],        # Allow all methods (GET, POST, etc.)
+    allow_headers=["*"],        # Allow all headers
+    allow_credentials=False,    # Must be False when using "*" for origins
+)
 
 @app.get("/check_email/")
 def check_email(email: str):
