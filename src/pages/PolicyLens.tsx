@@ -9,48 +9,124 @@ import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 
 type InputMode = "url" | "text";
-type NdprRating = "strong" | "partial" | "weak";
+type OverallCompliance = "Strong" | "Partial" | "Weak" | "Unknown";
 
-interface PolicyAnalysis {
-  summary: string;
-  dataCollected: string[];
-  usagePurposes: string[];
-  thirdParties: string[];
-  retention: string;
-  userRights: string[];
-  ndprRating: NdprRating;
-  strengths: string[];
-  gaps: string[];
-  questions: string[];
-  contactEmail?: string;
+// JSON format matching the backend response
+interface PolicyAnalysisResponse {
+  explanation: string;
+  data_they_collect: {
+    items: string[];
+  };
+  usage_and_sharing: {
+    usage_purposes: string[];
+    third_parties: string[];
+  };
+  deletion_and_your_rights: {
+    data_retention: string;
+    your_rights: string[];
+  };
+  ndpr_check: {
+    overall_compliance: OverallCompliance;
+    strengths: string[];
+    gaps: string[];
+    questions_to_ask: string[];
+  };
 }
 
-const mockAnalysis: PolicyAnalysis = {
-  summary: "This policy covers data collection for service delivery and marketing. They collect substantial personal information and share it with multiple third parties for advertising purposes. Data retention periods are vague, and some user rights are mentioned but not all NDPR requirements are met.",
-  dataCollected: ["Full name", "Email address", "Phone number", "IP address", "Device information", "Location data", "Browsing history", "Purchase history"],
-  usagePurposes: ["Service delivery", "Account management", "Marketing communications", "Personalized advertising", "Analytics", "Fraud prevention"],
-  thirdParties: ["Google Analytics", "Facebook Pixel", "Advertising partners", "Payment processors", "Cloud hosting providers"],
-  retention: "Data is retained for as long as your account is active, plus an unspecified period for legal compliance. Marketing data may be kept indefinitely.",
-  userRights: ["Access your data", "Correct inaccuracies", "Delete your account", "Opt-out of marketing"],
-  ndprRating: "partial",
-  strengths: [
-    "Clear description of data collected",
-    "Provides contact information for privacy queries",
-    "Mentions some user rights"
-  ],
-  gaps: [
-    "No specific mention of NDPR compliance",
-    "Vague data retention periods",
-    "Limited information on cross-border transfers",
-    "Unclear consent mechanisms"
-  ],
-  questions: [
-    "What is the exact data retention period for my account data?",
-    "Which countries does my data get transferred to?",
-    "How can I withdraw consent for marketing?",
-    "Who is your Data Protection Officer?"
-  ],
-  contactEmail: "privacy@example.com"
+// API base URL - update this to your backend URL
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+
+// Helper function to create empty/default response structure
+const createEmptyResponse = (): PolicyAnalysisResponse => ({
+  explanation: "Unknown",
+  data_they_collect: { items: [] },
+  usage_and_sharing: { usage_purposes: [], third_parties: [] },
+  deletion_and_your_rights: { data_retention: "Not specified", your_rights: [] },
+  ndpr_check: { overall_compliance: "Unknown", strengths: [], gaps: [], questions_to_ask: [] }
+});
+
+// Helper function to safely parse and validate API response
+const parseApiResponse = (data: unknown): PolicyAnalysisResponse => {
+  const response = createEmptyResponse();
+  
+  if (!data || typeof data !== 'object') {
+    return response;
+  }
+
+  const apiData = data as Record<string, unknown>;
+
+  // Parse explanation
+  if (typeof apiData.explanation === 'string') {
+    response.explanation = apiData.explanation;
+  }
+
+  // Parse data_they_collect
+  if (apiData.data_they_collect && typeof apiData.data_they_collect === 'object') {
+    const dataCollect = apiData.data_they_collect as Record<string, unknown>;
+    if (Array.isArray(dataCollect.items)) {
+      response.data_they_collect.items = dataCollect.items.filter(
+        (item): item is string => typeof item === 'string'
+      );
+    }
+  }
+
+  // Parse usage_and_sharing
+  if (apiData.usage_and_sharing && typeof apiData.usage_and_sharing === 'object') {
+    const usageSharing = apiData.usage_and_sharing as Record<string, unknown>;
+    if (Array.isArray(usageSharing.usage_purposes)) {
+      response.usage_and_sharing.usage_purposes = usageSharing.usage_purposes.filter(
+        (item): item is string => typeof item === 'string'
+      );
+    }
+    if (Array.isArray(usageSharing.third_parties)) {
+      response.usage_and_sharing.third_parties = usageSharing.third_parties.filter(
+        (item): item is string => typeof item === 'string'
+      );
+    }
+  }
+
+  // Parse deletion_and_your_rights
+  if (apiData.deletion_and_your_rights && typeof apiData.deletion_and_your_rights === 'object') {
+    const deletionRights = apiData.deletion_and_your_rights as Record<string, unknown>;
+    if (typeof deletionRights.data_retention === 'string') {
+      response.deletion_and_your_rights.data_retention = deletionRights.data_retention;
+    }
+    if (Array.isArray(deletionRights.your_rights)) {
+      response.deletion_and_your_rights.your_rights = deletionRights.your_rights.filter(
+        (item): item is string => typeof item === 'string'
+      );
+    }
+  }
+
+  // Parse ndpr_check
+  if (apiData.ndpr_check && typeof apiData.ndpr_check === 'object') {
+    const ndprCheck = apiData.ndpr_check as Record<string, unknown>;
+    
+    // Validate overall_compliance
+    const validCompliance = ["Strong", "Partial", "Weak", "Unknown"];
+    if (typeof ndprCheck.overall_compliance === 'string' && 
+        validCompliance.includes(ndprCheck.overall_compliance)) {
+      response.ndpr_check.overall_compliance = ndprCheck.overall_compliance as OverallCompliance;
+    }
+    
+    if (Array.isArray(ndprCheck.strengths)) {
+      response.ndpr_check.strengths = ndprCheck.strengths.filter(
+        (item): item is string => typeof item === 'string'
+      );
+    }
+    if (Array.isArray(ndprCheck.gaps)) {
+      response.ndpr_check.gaps = ndprCheck.gaps.filter(
+        (item): item is string => typeof item === 'string'
+      );
+    }
+    if (Array.isArray(ndprCheck.questions_to_ask)) {
+      response.ndpr_check.questions_to_ask = ndprCheck.questions_to_ask.filter(
+        (item): item is string => typeof item === 'string'
+      );
+    }
+  }
+
+  return response;
 };
 
 const PolicyLens = () => {
@@ -60,11 +136,11 @@ const PolicyLens = () => {
   const [urlInput, setUrlInput] = useState("");
   const [textInput, setTextInput] = useState("");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [analysis, setAnalysis] = useState<PolicyAnalysis | null>(null);
+  const [analysis, setAnalysis] = useState<PolicyAnalysisResponse | null>(null);
 
   const handleAnalyze = async () => {
-    const hasInput = inputMode === "url" ? urlInput : textInput;
-    if (!hasInput) {
+    const input = inputMode === "url" ? urlInput.trim() : textInput.trim();
+    if (!input) {
       toast({
         title: "No input provided",
         description: `Please enter a ${inputMode === "url" ? "URL" : "policy text"} to analyze.`,
@@ -74,29 +150,59 @@ const PolicyLens = () => {
     }
 
     setIsAnalyzing(true);
-    // Simulate analysis
-    await new Promise(resolve => setTimeout(resolve, 2500));
-    setAnalysis(mockAnalysis);
-    setIsAnalyzing(false);
-    toast({
-      title: "Analysis complete",
-      description: "Privacy policy has been analyzed.",
-    });
-  };
+    setAnalysis(null); // Clear previous analysis
 
-  const getRatingColor = (rating: NdprRating) => {
-    switch (rating) {
-      case "strong": return "green";
-      case "partial": return "orange";
-      case "weak": return "magenta";
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/analyze-policy`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          input_type: inputMode,
+          content: input,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Analysis failed: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      const parsedAnalysis = parseApiResponse(data);
+      setAnalysis(parsedAnalysis);
+      
+      toast({
+        title: "Analysis complete",
+        description: "Privacy policy has been analyzed.",
+      });
+    } catch (error) {
+      console.error("Policy analysis error:", error);
+      toast({
+        title: "Analysis failed",
+        description: error instanceof Error ? error.message : "Failed to analyze the policy. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsAnalyzing(false);
     }
   };
 
-  const getRatingIcon = (rating: NdprRating) => {
-    switch (rating) {
-      case "strong": return CheckCircle;
-      case "partial": return AlertCircle;
-      case "weak": return XCircle;
+  const getComplianceColor = (compliance: OverallCompliance): "green" | "orange" | "magenta" | "cyan" => {
+    switch (compliance) {
+      case "Strong": return "green";
+      case "Partial": return "orange";
+      case "Weak": return "magenta";
+      case "Unknown": return "cyan";
+    }
+  };
+
+  const getComplianceIcon = (compliance: OverallCompliance) => {
+    switch (compliance) {
+      case "Strong": return CheckCircle;
+      case "Partial": return AlertCircle;
+      case "Weak": return XCircle;
+      case "Unknown": return AlertCircle;
     }
   };
 
@@ -191,20 +297,24 @@ const PolicyLens = () => {
         {/* Results */}
         {analysis && (
           <div className="max-w-6xl mx-auto space-y-6 animate-fade-in">
-            {/* Summary Card */}
+            {/* Explanation Card */}
             <SectionCard variant="purple" title="In simple terms" icon={FileText}>
               <p className="text-foreground leading-relaxed">
-                {analysis.summary}
+                {analysis.explanation || "Not specified"}
               </p>
             </SectionCard>
 
             <div className="grid md:grid-cols-2 gap-6">
-              {/* Data Collected */}
+              {/* Data They Collect */}
               <SectionCard title="Data they collect" icon={Shield}>
                 <div className="flex flex-wrap gap-2">
-                  {analysis.dataCollected.map((item, idx) => (
-                    <Pill key={idx} variant="cyan">{item}</Pill>
-                  ))}
+                  {analysis.data_they_collect.items.length > 0 ? (
+                    analysis.data_they_collect.items.map((item, idx) => (
+                      <Pill key={idx} variant="cyan">{item}</Pill>
+                    ))
+                  ) : (
+                    <span className="text-muted-foreground text-sm">Not specified</span>
+                  )}
                 </div>
               </SectionCard>
 
@@ -214,35 +324,49 @@ const PolicyLens = () => {
                   <div>
                     <h4 className="text-sm font-medium text-muted-foreground mb-2">Usage purposes</h4>
                     <div className="flex flex-wrap gap-2">
-                      {analysis.usagePurposes.map((item, idx) => (
-                        <Pill key={idx} variant="purple">{item}</Pill>
-                      ))}
+                      {analysis.usage_and_sharing.usage_purposes.length > 0 ? (
+                        analysis.usage_and_sharing.usage_purposes.map((item, idx) => (
+                          <Pill key={idx} variant="purple">{item}</Pill>
+                        ))
+                      ) : (
+                        <span className="text-muted-foreground text-sm">Not specified</span>
+                      )}
                     </div>
                   </div>
                   <div>
                     <h4 className="text-sm font-medium text-muted-foreground mb-2">Third parties</h4>
                     <div className="flex flex-wrap gap-2">
-                      {analysis.thirdParties.map((item, idx) => (
-                        <Pill key={idx} variant="orange">{item}</Pill>
-                      ))}
+                      {analysis.usage_and_sharing.third_parties.length > 0 ? (
+                        analysis.usage_and_sharing.third_parties.map((item, idx) => (
+                          <Pill key={idx} variant="orange">{item}</Pill>
+                        ))
+                      ) : (
+                        <span className="text-muted-foreground text-sm">Not specified</span>
+                      )}
                     </div>
                   </div>
                 </div>
               </SectionCard>
 
-              {/* Retention & Rights */}
+              {/* Deletion & Your Rights */}
               <SectionCard title="Deletion & your rights" icon={Clock}>
                 <div className="space-y-4">
                   <div>
                     <h4 className="text-sm font-medium text-muted-foreground mb-2">Data retention</h4>
-                    <p className="text-sm text-foreground">{analysis.retention}</p>
+                    <p className="text-sm text-foreground">
+                      {analysis.deletion_and_your_rights.data_retention || "Not specified"}
+                    </p>
                   </div>
                   <div>
                     <h4 className="text-sm font-medium text-muted-foreground mb-2">Your rights</h4>
                     <div className="flex flex-wrap gap-2">
-                      {analysis.userRights.map((right, idx) => (
-                        <Pill key={idx} variant="green">{right}</Pill>
-                      ))}
+                      {analysis.deletion_and_your_rights.your_rights.length > 0 ? (
+                        analysis.deletion_and_your_rights.your_rights.map((right, idx) => (
+                          <Pill key={idx} variant="green">{right}</Pill>
+                        ))
+                      ) : (
+                        <span className="text-muted-foreground text-sm">Not specified</span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -251,15 +375,16 @@ const PolicyLens = () => {
               {/* NDPR Check */}
               <SectionCard title="NDPR check" icon={UserCheck}>
                 <div className="space-y-4">
-                  {/* Rating Badge */}
+                  {/* Compliance Badge */}
                   <div className="flex items-center gap-3">
                     {(() => {
-                      const RatingIcon = getRatingIcon(analysis.ndprRating);
+                      const ComplianceIcon = getComplianceIcon(analysis.ndpr_check.overall_compliance);
+                      const complianceColor = getComplianceColor(analysis.ndpr_check.overall_compliance);
                       return (
                         <>
-                          <RatingIcon className={`w-6 h-6 text-${getRatingColor(analysis.ndprRating)}`} />
-                          <Pill variant={getRatingColor(analysis.ndprRating)}>
-                            NDPR Compliance: {analysis.ndprRating.charAt(0).toUpperCase() + analysis.ndprRating.slice(1)}
+                          <ComplianceIcon className={`w-6 h-6 text-${complianceColor}`} />
+                          <Pill variant={complianceColor}>
+                            NDPR Compliance: {analysis.ndpr_check.overall_compliance}
                           </Pill>
                         </>
                       );
@@ -269,59 +394,69 @@ const PolicyLens = () => {
                   {/* Strengths */}
                   <div>
                     <h4 className="text-sm font-medium text-green mb-2">Strengths</h4>
-                    <ul className="space-y-1">
-                      {analysis.strengths.map((item, idx) => (
-                        <li key={idx} className="flex items-start gap-2 text-sm text-muted-foreground">
-                          <CheckCircle className="w-4 h-4 text-green mt-0.5 flex-shrink-0" />
-                          {item}
-                        </li>
-                      ))}
-                    </ul>
+                    {analysis.ndpr_check.strengths.length > 0 ? (
+                      <ul className="space-y-1">
+                        {analysis.ndpr_check.strengths.map((item, idx) => (
+                          <li key={idx} className="flex items-start gap-2 text-sm text-muted-foreground">
+                            <CheckCircle className="w-4 h-4 text-green mt-0.5 flex-shrink-0" />
+                            {item}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <span className="text-muted-foreground text-sm">None identified</span>
+                    )}
                   </div>
 
                   {/* Gaps */}
                   <div>
                     <h4 className="text-sm font-medium text-secondary mb-2">Gaps</h4>
-                    <ul className="space-y-1">
-                      {analysis.gaps.map((item, idx) => (
-                        <li key={idx} className="flex items-start gap-2 text-sm text-muted-foreground">
-                          <XCircle className="w-4 h-4 text-secondary mt-0.5 flex-shrink-0" />
-                          {item}
-                        </li>
-                      ))}
-                    </ul>
+                    {analysis.ndpr_check.gaps.length > 0 ? (
+                      <ul className="space-y-1">
+                        {analysis.ndpr_check.gaps.map((item, idx) => (
+                          <li key={idx} className="flex items-start gap-2 text-sm text-muted-foreground">
+                            <XCircle className="w-4 h-4 text-secondary mt-0.5 flex-shrink-0" />
+                            {item}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <span className="text-muted-foreground text-sm">None identified</span>
+                    )}
                   </div>
 
-                  {/* Questions */}
+                  {/* Questions to Ask */}
                   <div>
                     <h4 className="text-sm font-medium text-accent mb-2">Questions you can ask them</h4>
-                    <ul className="space-y-1">
-                      {analysis.questions.map((item, idx) => (
-                        <li key={idx} className="flex items-start gap-2 text-sm text-muted-foreground">
-                          <span className="text-accent">•</span>
-                          {item}
-                        </li>
-                      ))}
-                    </ul>
+                    {analysis.ndpr_check.questions_to_ask.length > 0 ? (
+                      <ul className="space-y-1">
+                        {analysis.ndpr_check.questions_to_ask.map((item, idx) => (
+                          <li key={idx} className="flex items-start gap-2 text-sm text-muted-foreground">
+                            <span className="text-accent">•</span>
+                            {item}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <span className="text-muted-foreground text-sm">None identified</span>
+                    )}
                   </div>
                 </div>
               </SectionCard>
             </div>
 
             {/* Action Button */}
-            {analysis.contactEmail && (
-              <div className="flex justify-center pt-4">
-                <Button
-                  variant="magenta"
-                  size="lg"
-                  onClick={() => navigate("/delete-data")}
-                  className="gap-2"
-                >
-                  <Mail className="w-5 h-5" />
-                  Generate DPO email from this policy
-                </Button>
-              </div>
-            )}
+            <div className="flex justify-center pt-4">
+              <Button
+                variant="magenta"
+                size="lg"
+                onClick={() => navigate("/delete-data")}
+                className="gap-2"
+              >
+                <Mail className="w-5 h-5" />
+                Generate DPO email from this policy
+              </Button>
+            </div>
           </div>
         )}
       </div>

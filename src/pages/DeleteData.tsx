@@ -1,10 +1,17 @@
-import { useState } from "react";
-import { Trash2, Copy, ExternalLink, Check, Building2, Plus } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Trash2, Copy, ExternalLink, Check, Building2, Plus, Mail, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import SectionCard from "@/components/SectionCard";
 import Pill from "@/components/Pill";
 import { useToast } from "@/hooks/use-toast";
+import { useLocation } from "react-router-dom";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface Service {
   id: string;
@@ -25,10 +32,23 @@ const popularServices: Service[] = [
   { id: "meta", name: "Meta/Facebook", dpoEmail: "dataprotection@fb.com", selected: false },
   { id: "twitter", name: "Twitter/X", dpoEmail: "dpo@twitter.com", selected: false },
   { id: "amazon", name: "Amazon", dpoEmail: "eu-privacy@amazon.com", selected: false },
-  { id: "linkedin", name: "LinkedIn", dpoEmail: "dpo@linkedin.com", selected: false },
-  { id: "spotify", name: "Spotify", dpoEmail: "privacy@spotify.com", selected: false },
-  { id: "netflix", name: "Netflix", dpoEmail: "privacy@netflix.com", selected: false },
   { id: "apple", name: "Apple", dpoEmail: "dpo@apple.com", selected: false },
+  { id: "netflix", name: "Netflix", dpoEmail: "privacy@netflix.com", selected: false },
+  { id: "kuda", name: "Kuda", dpoEmail: "dpo@kuda.com", selected: false },
+  { id: "github", name: "GitHub", dpoEmail: "dpo@github.com", selected: false },
+  { id: "spotify", name: "Spotify", dpoEmail: "privacy@spotify.com", selected: false },
+  { id: "bet9ja", name: "Bet9ja", dpoEmail: "dataprotection@bet9ja.com", selected: false },
+  { id: "sportybet", name: "SportyBet", dpoEmail: "compliance@sportybet.com", selected: false },
+  { id: "medium", name: "Medium", dpoEmail: "privacy@medium.com", selected: false },
+  { id: "reddit", name: "Reddit", dpoEmail: "dpo@reddit.com", selected: false },
+  { id: "linkedin", name: "LinkedIn", dpoEmail: "https://www.linkedin.com/help/linkedin/ask/TSO-DPO", selected: false },
+  { id: "tiktok", name: "TikTok", dpoEmail: "https://www.tiktok.com/legal/report/dpo", selected: false },
+  { id: "opay", name: "OPay", dpoEmail: "ng-privacy@opay-inc.com", selected: false },
+  { id: "jumia", name: "Jumia", dpoEmail: "Nigeria.Legal@Jumia.com", selected: false },
+  { id: "konga", name: "Konga", dpoEmail: "dataprotection@kongapay.com", selected: false },
+  { id: "piggyvest", name: "PiggyVest", dpoEmail: "legal@piggyvest.com", selected: false },
+  { id: "palmpay", name: "PalmPay", dpoEmail: "dpo@palmpay-inc.com", selected: false },
+  { id: "pinterest", name: "Pinterest", dpoEmail: "privacy-support@pinterest.com", selected: false },
 ];
 
 const generateEmailTemplate = (fullName: string, email: string, serviceName: string): string => {
@@ -63,6 +83,7 @@ ${fullName}`;
 
 const DeleteData = () => {
   const { toast } = useToast();
+  const location = useLocation();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -70,6 +91,31 @@ const DeleteData = () => {
   const [services, setServices] = useState<Service[]>(popularServices);
   const [generatedEmails, setGeneratedEmails] = useState<GeneratedEmail[]>([]);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+
+  // Handle preselected services from Email Scanner
+  useEffect(() => {
+    const state = location.state as { preselectedServices?: string[] } | null;
+    if (state?.preselectedServices && state.preselectedServices.length > 0) {
+      setServices(currentServices =>
+        currentServices.map(service => {
+          // Check if service name matches any preselected service (case-insensitive)
+          const isPreselected = state.preselectedServices!.some(
+            preselected => 
+              service.id.toLowerCase() === preselected.toLowerCase() ||
+              service.name.toLowerCase() === preselected.toLowerCase() ||
+              service.name.toLowerCase().includes(preselected.toLowerCase()) ||
+              preselected.toLowerCase().includes(service.name.toLowerCase())
+          );
+          return isPreselected ? { ...service, selected: true } : service;
+        })
+      );
+      
+      toast({
+        title: "Services preselected",
+        description: `${state.preselectedServices.length} service(s) from your scan have been selected.`,
+      });
+    }
+  }, [location.state, toast]);
 
   const selectedCount = services.filter(s => s.selected).length;
 
@@ -124,8 +170,63 @@ const DeleteData = () => {
   };
 
   const openInEmail = (email: GeneratedEmail) => {
-    const mailtoLink = `mailto:${email.dpoEmail}?subject=${encodeURIComponent(email.subject)}&body=${encodeURIComponent(email.body)}`;
-    window.open(mailtoLink, '_blank');
+    // Check if dpoEmail is a URL (for platforms like LinkedIn, TikTok)
+    if (email.dpoEmail.startsWith("http://") || email.dpoEmail.startsWith("https://")) {
+      window.open(email.dpoEmail, '_blank');
+      toast({
+        title: "Opening DPO portal",
+        description: `${email.service} uses a web form for data requests. The email body has been copied to your clipboard.`,
+      });
+      navigator.clipboard.writeText(email.body);
+    } else {
+      const mailtoLink = `mailto:${email.dpoEmail}?subject=${encodeURIComponent(email.subject)}&body=${encodeURIComponent(email.body)}`;
+      window.open(mailtoLink, '_blank');
+    }
+  };
+
+  // Open in Gmail compose
+  const openInGmail = (email: GeneratedEmail) => {
+    if (email.dpoEmail.startsWith("http://") || email.dpoEmail.startsWith("https://")) {
+      window.open(email.dpoEmail, '_blank');
+      navigator.clipboard.writeText(email.body);
+      toast({
+        title: "Opening DPO portal",
+        description: `${email.service} uses a web form. Email body copied to clipboard.`,
+      });
+    } else {
+      const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(email.dpoEmail)}&su=${encodeURIComponent(email.subject)}&body=${encodeURIComponent(email.body)}`;
+      window.open(gmailUrl, '_blank');
+    }
+  };
+
+  // Open in Outlook compose
+  const openInOutlook = (email: GeneratedEmail) => {
+    if (email.dpoEmail.startsWith("http://") || email.dpoEmail.startsWith("https://")) {
+      window.open(email.dpoEmail, '_blank');
+      navigator.clipboard.writeText(email.body);
+      toast({
+        title: "Opening DPO portal",
+        description: `${email.service} uses a web form. Email body copied to clipboard.`,
+      });
+    } else {
+      const outlookUrl = `https://outlook.live.com/mail/0/deeplink/compose?to=${encodeURIComponent(email.dpoEmail)}&subject=${encodeURIComponent(email.subject)}&body=${encodeURIComponent(email.body)}`;
+      window.open(outlookUrl, '_blank');
+    }
+  };
+
+  // Open in Yahoo Mail compose
+  const openInYahoo = (email: GeneratedEmail) => {
+    if (email.dpoEmail.startsWith("http://") || email.dpoEmail.startsWith("https://")) {
+      window.open(email.dpoEmail, '_blank');
+      navigator.clipboard.writeText(email.body);
+      toast({
+        title: "Opening DPO portal",
+        description: `${email.service} uses a web form. Email body copied to clipboard.`,
+      });
+    } else {
+      const yahooUrl = `https://compose.mail.yahoo.com/?to=${encodeURIComponent(email.dpoEmail)}&subject=${encodeURIComponent(email.subject)}&body=${encodeURIComponent(email.body)}`;
+      window.open(yahooUrl, '_blank');
+    }
   };
 
   return (
@@ -295,15 +396,33 @@ const DeleteData = () => {
                             </>
                           )}
                         </Button>
-                        <Button
-                          variant="magenta"
-                          size="sm"
-                          onClick={() => openInEmail(email)}
-                          className="flex-1"
-                        >
-                          <ExternalLink className="w-4 h-4" />
-                          Open in email
-                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="magenta"
+                              size="sm"
+                              className="flex-1"
+                            >
+                              <Mail className="w-4 h-4" />
+                              Send email
+                              <ChevronDown className="w-4 h-4 ml-1" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-48">
+                            <DropdownMenuItem onClick={() => openInGmail(email)}>
+                              <span className="mr-2">📧</span> Open in Gmail
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => openInOutlook(email)}>
+                              <span className="mr-2">📬</span> Open in Outlook
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => openInYahoo(email)}>
+                              <span className="mr-2">✉️</span> Open in Yahoo Mail
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => openInEmail(email)}>
+                              <span className="mr-2">💻</span> Default email app
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     </div>
                   ))}

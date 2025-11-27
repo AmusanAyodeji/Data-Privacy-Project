@@ -1,2 +1,27 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Python
 \env
->>>>>>> 8215da9eb4c0b635b5429977e8534b4d376df941
+__pycache__/
+*.py[cod]
+
+# Editor
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*

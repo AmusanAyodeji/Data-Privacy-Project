@@ -1,76 +1,149 @@
 import { useState } from "react";
-import { Mail, AlertTriangle, Check, HelpCircle, Sparkles, Database, FileKey, Shield } from "lucide-react";
+import { Mail, AlertTriangle, Check, Shield, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import SectionCard from "@/components/SectionCard";
 import Pill from "@/components/Pill";
+import { useToast } from "@/hooks/use-toast";
+import { useNavigate } from "react-router-dom";
 
-interface ScanOption {
-  id: string;
-  label: string;
-  icon: React.ElementType;
-  enabled: boolean;
+// API response format
+interface BreachResult {
+  email: string;
+  has_password: boolean;
+  sources: string;
 }
 
-interface ServiceResult {
+interface ScanResponse {
+  message: string;
+  result: BreachResult[];
+}
+
+// Parsed service from sources
+interface ConfirmedService {
   id: string;
   name: string;
-  icon?: string;
-  status: "confirmed" | "likely";
-  confidence?: number;
-  sources: string[];
+  hasPassword: boolean;
+  addedToDeleteList: boolean;
 }
 
-interface Breach {
-  name: string;
-  date: string;
-  fields: string[];
-}
+// API base URL
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 const EmailScanner = () => {
+  const { toast } = useToast();
+  const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [isScanning, setIsScanning] = useState(false);
+  const [scanMessage, setScanMessage] = useState<string | null>(null);
+  const [confirmedServices, setConfirmedServices] = useState<ConfirmedService[]>([]);
   const [hasResults, setHasResults] = useState(false);
-  
-  const [scanOptions, setScanOptions] = useState<ScanOption[]>([
-    { id: "breach", label: "Breach check", icon: AlertTriangle, enabled: true },
-    { id: "ai", label: "AI suggestions", icon: Sparkles, enabled: true },
-  ]);
 
-  // Mock data for demonstration
-  const [confirmedServices] = useState<ServiceResult[]>([
-    { id: "1", name: "Google", status: "confirmed", sources: ["Breach", "User-confirmed"] },
-    { id: "2", name: "Facebook", status: "confirmed", sources: ["Breach"] },
-    { id: "3", name: "Twitter/X", status: "confirmed", sources: ["Breach", "AI"] },
-  ]);
+  // Parse sources string into individual services
+  const parseSourcesIntoServices = (results: BreachResult[]): ConfirmedService[] => {
+    const servicesMap = new Map<string, ConfirmedService>();
+    
+    results.forEach((result) => {
+      // Sources can be comma-separated or a single value
+      const sources = result.sources.split(",").map(s => s.trim()).filter(s => s.length > 0);
+      
+      sources.forEach((source) => {
+        // Clean up the source name (remove .com, etc. for cleaner display)
+        const cleanName = source.replace(/\.(com|org|net|io|co)$/i, "");
+        const id = cleanName.toLowerCase().replace(/[^a-z0-9]/g, "");
+        
+        if (!servicesMap.has(id)) {
+          servicesMap.set(id, {
+            id,
+            name: cleanName,
+            hasPassword: result.has_password,
+            addedToDeleteList: false,
+          });
+        } else {
+          // If already exists and this result has password leaked, update it
+          const existing = servicesMap.get(id)!;
+          if (result.has_password) {
+            existing.hasPassword = true;
+          }
+        }
+      });
+    });
+    
+    return Array.from(servicesMap.values());
+  };
 
-  const [likelyServices] = useState<ServiceResult[]>([
-    { id: "4", name: "LinkedIn", status: "likely", confidence: 85, sources: ["AI"] },
-    { id: "5", name: "Spotify", status: "likely", confidence: 72, sources: ["AI"] },
-    { id: "6", name: "Netflix", status: "likely", confidence: 65, sources: ["AI"] },
-  ]);
+  const handleScan = async () => {
+    if (!email) {
+      toast({
+        title: "No email provided",
+        description: "Please enter an email address to scan.",
+        variant: "destructive",
+      });
+      return;
+    }
 
-  const [breaches] = useState<Breach[]>([
-    { name: "Collection #1", date: "January 2019", fields: ["Email", "Password"] },
-    { name: "Facebook 2021", date: "April 2021", fields: ["Email", "Phone", "Name"] },
-  ]);
+    setIsScanning(true);
+    setScanMessage(null);
+    setConfirmedServices([]);
+    setHasResults(false);
 
-  const toggleOption = (id: string) => {
-    setScanOptions(options =>
-      options.map(opt =>
-        opt.id === id ? { ...opt, enabled: !opt.enabled } : opt
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/scan-email`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Scan failed: ${response.status} ${response.statusText}`);
+      }
+
+      const data: ScanResponse = await response.json();
+      
+      setScanMessage(data.message);
+      
+      if (data.result && data.result.length > 0) {
+        const services = parseSourcesIntoServices(data.result);
+        setConfirmedServices(services);
+      }
+      
+      setHasResults(true);
+      toast({
+        title: "Scan complete",
+        description: data.message,
+      });
+    } catch (error) {
+      console.error("Email scan error:", error);
+      toast({
+        title: "Scan failed",
+        description: error instanceof Error ? error.message : "Failed to scan email. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsScanning(false);
+    }
+  };
+
+  const toggleAddToDeleteList = (serviceId: string) => {
+    setConfirmedServices(services =>
+      services.map(s =>
+        s.id === serviceId ? { ...s, addedToDeleteList: !s.addedToDeleteList } : s
       )
     );
   };
 
-  const handleScan = async () => {
-    if (!email) return;
-    setIsScanning(true);
-    // Simulate scan
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    setIsScanning(false);
-    setHasResults(true);
+  const goToDeleteDataWithServices = () => {
+    const selectedServices = confirmedServices
+      .filter(s => s.addedToDeleteList)
+      .map(s => s.name.toLowerCase());
+    
+    // Navigate to delete data page with selected services as state
+    navigate("/delete-data", { state: { preselectedServices: selectedServices } });
   };
+
+  const selectedForDeletionCount = confirmedServices.filter(s => s.addedToDeleteList).length;
 
   return (
     <div className="min-h-screen pt-24 pb-16">
@@ -85,7 +158,7 @@ const EmailScanner = () => {
             Discover your digital footprint
           </h1>
           <p className="text-lg text-muted-foreground">
-            Enter an email to see suspected services and known breaches. No account required.
+            Enter an email to see known breaches. No account required.
           </p>
         </div>
 
@@ -105,24 +178,6 @@ const EmailScanner = () => {
                   onChange={(e) => setEmail(e.target.value)}
                   className="h-12 bg-background/50 border-border/50 focus:border-primary text-lg"
                 />
-              </div>
-
-              {/* Scan Options */}
-              <div className="flex flex-wrap gap-3">
-                {scanOptions.map((option) => (
-                  <button
-                    key={option.id}
-                    onClick={() => toggleOption(option.id)}
-                    className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all ${
-                      option.enabled
-                        ? "bg-primary/20 text-primary border border-primary/30"
-                        : "bg-muted/50 text-muted-foreground border border-border/50 hover:bg-muted"
-                    }`}
-                  >
-                    <option.icon className="w-4 h-4" />
-                    {option.label}
-                  </button>
-                ))}
               </div>
 
               {/* Scan Button */}
@@ -152,8 +207,8 @@ const EmailScanner = () => {
         {/* Results */}
         {hasResults && (
           <div className="max-w-5xl mx-auto space-y-8 animate-fade-in">
-            {/* Breach Alert */}
-            {breaches.length > 0 && (
+            {/* Breach Alert / No Breach Message */}
+            {confirmedServices.length > 0 ? (
               <SectionCard variant="magenta" className="border-secondary/40">
                 <div className="flex items-start gap-4">
                   <div className="p-3 rounded-xl bg-secondary/20">
@@ -161,59 +216,63 @@ const EmailScanner = () => {
                   </div>
                   <div className="flex-1">
                     <h3 className="text-xl font-bold text-foreground mb-2">
-                      We found {breaches.length} breaches for this email
+                      {scanMessage}
                     </h3>
-                    <div className="space-y-3">
-                      {breaches.map((breach, idx) => (
-                        <div
-                          key={idx}
-                          className="flex flex-wrap items-center gap-3 p-3 rounded-lg bg-background/50"
-                        >
-                          <span className="font-medium text-foreground">{breach.name}</span>
-                          <span className="text-sm text-muted-foreground">{breach.date}</span>
-                          <div className="flex gap-2 ml-auto">
-                            {breach.fields.map((field) => (
-                              <Pill key={field} variant="magenta">{field}</Pill>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                    <p className="text-muted-foreground">
+                      Select the services below to add them to your data deletion request.
+                    </p>
+                  </div>
+                </div>
+              </SectionCard>
+            ) : (
+              <SectionCard variant="cyan" className="border-green/40">
+                <div className="flex items-start gap-4">
+                  <div className="p-3 rounded-xl bg-green/20">
+                    <Shield className="w-6 h-6 text-green" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-xl font-bold text-foreground mb-2">
+                      {scanMessage || "No breaches found"}
+                    </h3>
+                    <p className="text-muted-foreground">
+                      Good news! This email wasn't found in any known data breaches.
+                    </p>
                   </div>
                 </div>
               </SectionCard>
             )}
 
-            {/* Services Grid */}
-            <div className="grid md:grid-cols-2 gap-6">
-              {/* Confirmed Services */}
+            {/* Confirmed Services */}
+            {confirmedServices.length > 0 && (
               <div className="space-y-4">
-                <div className="flex items-center gap-2">
-                  <Check className="w-5 h-5 text-green" />
-                  <h2 className="text-xl font-bold text-foreground">Confirmed services</h2>
-                  <span className="text-sm text-muted-foreground">({confirmedServices.length})</span>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Check className="w-5 h-5 text-green" />
+                    <h2 className="text-xl font-bold text-foreground">Breached services</h2>
+                    <span className="text-sm text-muted-foreground">({confirmedServices.length})</span>
+                  </div>
+                  {selectedForDeletionCount > 0 && (
+                    <Button
+                      variant="magenta"
+                      size="sm"
+                      onClick={goToDeleteDataWithServices}
+                    >
+                      <Plus className="w-4 h-4" />
+                      Request deletion ({selectedForDeletionCount})
+                    </Button>
+                  )}
                 </div>
-                <div className="space-y-3">
+                <div className="grid md:grid-cols-2 gap-4">
                   {confirmedServices.map((service) => (
-                    <ServiceCard key={service.id} service={service} />
+                    <ServiceCard 
+                      key={service.id} 
+                      service={service} 
+                      onToggleDelete={() => toggleAddToDeleteList(service.id)}
+                    />
                   ))}
                 </div>
               </div>
-
-              {/* Likely Services */}
-              <div className="space-y-4">
-                <div className="flex items-center gap-2">
-                  <HelpCircle className="w-5 h-5 text-orange" />
-                  <h2 className="text-xl font-bold text-foreground">Likely services</h2>
-                  <span className="text-sm text-muted-foreground">({likelyServices.length})</span>
-                </div>
-                <div className="space-y-3">
-                  {likelyServices.map((service) => (
-                    <ServiceCard key={service.id} service={service} />
-                  ))}
-                </div>
-              </div>
-            </div>
+            )}
           </div>
         )}
       </div>
@@ -221,60 +280,54 @@ const EmailScanner = () => {
   );
 };
 
-const ServiceCard = ({ service }: { service: ServiceResult }) => {
-  const sourceIcons: Record<string, React.ElementType> = {
-    "Breach": AlertTriangle,
-    "User-confirmed": Check,
-    "AI": Sparkles,
-    "CSV": FileKey,
-  };
+interface ServiceCardProps {
+  service: ConfirmedService;
+  onToggleDelete: () => void;
+}
 
+const ServiceCard = ({ service, onToggleDelete }: ServiceCardProps) => {
   return (
-    <div className="glass-card p-4 group hover:border-primary/30 transition-all">
+    <div className={`glass-card p-4 transition-all ${service.addedToDeleteList ? 'border-secondary/50 bg-secondary/5' : ''}`}>
       <div className="flex items-center gap-4">
         {/* Service Icon */}
         <div className="w-12 h-12 rounded-xl bg-muted/50 flex items-center justify-center text-xl font-bold text-muted-foreground">
-          {service.name.charAt(0)}
+          {service.name.charAt(0).toUpperCase()}
         </div>
 
         {/* Service Info */}
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-1">
             <h4 className="font-semibold text-foreground">{service.name}</h4>
-            <Pill variant={service.status === "confirmed" ? "green" : "orange"}>
-              {service.status === "confirmed" ? "Confirmed" : `${service.confidence}% likely`}
-            </Pill>
+            <Pill variant="green">Confirmed</Pill>
           </div>
           <div className="flex items-center gap-2">
-            {service.sources.map((source) => {
-              const Icon = sourceIcons[source] || Database;
-              return (
-                <span
-                  key={source}
-                  className="inline-flex items-center gap-1 text-xs text-muted-foreground"
-                >
-                  <Icon className="w-3 h-3" />
-                  {source}
-                </span>
-              );
-            })}
+            {service.hasPassword && (
+              <Pill variant="magenta">
+                <AlertTriangle className="w-3 h-3" />
+                Password leaked
+              </Pill>
+            )}
           </div>
         </div>
 
         {/* Actions */}
-        <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-          {service.status === "likely" && (
-            <>
-              <Button variant="ghost" size="sm" className="text-green hover:text-green">
+        <div className="flex items-center gap-2">
+          <Button
+            variant={service.addedToDeleteList ? "magenta" : "outline"}
+            size="sm"
+            onClick={onToggleDelete}
+          >
+            {service.addedToDeleteList ? (
+              <>
                 <Check className="w-4 h-4" />
-              </Button>
-              <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive">
-                ✕
-              </Button>
-            </>
-          )}
-          <Button variant="outline" size="sm">
-            Add to delete list
+                Added
+              </>
+            ) : (
+              <>
+                <Plus className="w-4 h-4" />
+                Add to delete list
+              </>
+            )}
           </Button>
         </div>
       </div>
