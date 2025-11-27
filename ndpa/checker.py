@@ -1,6 +1,3 @@
-# ndpa/checker.py
-
-import os
 import re
 import json
 from pathlib import Path
@@ -112,7 +109,6 @@ Rules:
 def call_policy_analyzer(policy_text: str) -> Dict[str, Any]:
     user_prompt = _PROMPT_TEMPLATE.format(policy_text=policy_text)
     raw = call_xai_compare(SYSTEM_PROMPT, user_prompt)
-
     try:
         parsed = json.loads(raw)
     except:
@@ -182,18 +178,3 @@ def analyze_policy_input(input_value: str) -> Dict[str, Any]:
 
     return call_policy_analyzer(policy_text)
 
-if __name__ == "__main__":
-    import sys
-
-    if len(sys.argv) < 2:
-        print("Usage:")
-        print("  python -m ndpa.checker <file>")
-        print("  python -m ndpa.checker <url>")
-        print("  python -m ndpa.checker \"<raw text>\"")
-        sys.exit(1)
-
-    arg = sys.argv[1]
-
-    input_text = read_file(arg) if Path(arg).exists() else arg
-    out = analyze_policy_input(input_text)
-    print(json.dumps(out, indent=2, ensure_ascii=False))

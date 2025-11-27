@@ -1,6 +1,3 @@
-# ndpa/rules.py
-# Simple checklist of NDPA areas (used in summaries & reporting)
-
 NDPA_KEY_REQUIREMENTS = [
     "Lawful basis for processing",
     "Purpose limitation",

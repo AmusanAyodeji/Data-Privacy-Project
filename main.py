@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 import requests
+from ndpa.checker import call_policy_analyzer
 
 platform_templates = {
     "kuda": {
@@ -497,12 +498,11 @@ def check_email(email: str):
 def request_deletion(platform: str):
     email_info = platform_templates.get(platform.lower())
     if email_info:
-        print(email_info)
         return email_info
     else:
         return {"error": "Platform not supported."}
 
 
 @app.get("/privacy_policy_check/")
-def privacy_policy_check(policy_text: str):
-    pass  # Placeholder for AI-based privacy policy analysis
+def privacy_policy_check(input: str):
+    return call_policy_analyzer(input)
