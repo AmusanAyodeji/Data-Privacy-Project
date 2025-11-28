@@ -6,6 +6,8 @@ import requests
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 
+# change 
+
 load_dotenv()
 
 from .xai_client import call_xai_compare
