@@ -495,7 +495,7 @@ def check_email(email: str):
     url = "https://breachdirectory.p.rapidapi.com/"
     querystring = {"func":"auto","term":email}
     headers = {
-        "x-rapidapi-key": "2e951d0b97msha59532c8f122745p191ea8jsn4292ea0a892a",
+        "x-rapidapi-key": "8c7d8e7924msh339167a82eb0f0fp17bea2jsnc68e11701a7b",
         "x-rapidapi-host": "breachdirectory.p.rapidapi.com"
     }
 
