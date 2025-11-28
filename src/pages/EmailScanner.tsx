@@ -7,10 +7,13 @@ import Pill from "@/components/Pill";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 
-// API response format
+// API response format - matches actual backend response
 interface BreachResult {
   email: string;
-  has_password: boolean;
+  hash_password: boolean;
+  password: string;
+  sha1: string;
+  hash: string;
   sources: string;
 }
 
@@ -45,7 +48,7 @@ const EmailScanner = () => {
     
     results.forEach((result) => {
       // Sources can be comma-separated or a single value
-      const sources = result.sources.split(",").map(s => s.trim()).filter(s => s.length > 0);
+      const sources = result.sources?.split(",").map(s => s.trim()).filter(s => s.length > 0) || [];
       
       sources.forEach((source) => {
         // Clean up the source name (remove .com, etc. for cleaner display)
@@ -56,13 +59,13 @@ const EmailScanner = () => {
           servicesMap.set(id, {
             id,
             name: cleanName,
-            hasPassword: result.has_password,
+            hasPassword: result.hash_password || false,
             addedToDeleteList: false,
           });
         } else {
           // If already exists and this result has password leaked, update it
           const existing = servicesMap.get(id)!;
-          if (result.has_password) {
+          if (result.hash_password) {
             existing.hasPassword = true;
           }
         }
