@@ -27,8 +27,8 @@ interface ConfirmedService {
   addedToDeleteList: boolean;
 }
 
-// API base URL
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+// API base URL - Render backend
+const API_BASE_URL = import.meta.env.VITE_API_URL || "https://data-privacy-project.onrender.com";
 
 const EmailScanner = () => {
   const { toast } = useToast();
@@ -88,12 +88,11 @@ const EmailScanner = () => {
     setHasResults(false);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/scan-email`, {
-        method: "POST",
+      const response = await fetch(`${API_BASE_URL}/check_email/?email=${encodeURIComponent(email)}`, {
+        method: "GET",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ email }),
       });
 
       if (!response.ok) {
