@@ -33,8 +33,8 @@ interface PolicyAnalysisResponse {
   };
 }
 
-// API base URL - update this to your backend URL
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+// API base URL - Render backend
+const API_BASE_URL = import.meta.env.VITE_API_URL || "https://data-privacy-project.onrender.com";
 
 // Helper function to create empty/default response structure
 const createEmptyResponse = (): PolicyAnalysisResponse => ({
@@ -153,15 +153,11 @@ const PolicyLens = () => {
     setAnalysis(null); // Clear previous analysis
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/analyze-policy`, {
-        method: "POST",
+      const response = await fetch(`${API_BASE_URL}/privacy_policy_check/?input=${encodeURIComponent(input)}`, {
+        method: "GET",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          input_type: inputMode,
-          content: input,
-        }),
       });
 
       if (!response.ok) {
