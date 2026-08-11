@@ -112,8 +112,11 @@ def call_policy_analyzer(policy_text: str) -> Dict[str, Any]:
     user_prompt = _PROMPT_TEMPLATE.format(policy_text=policy_text)
     raw = call_xai_compare(SYSTEM_PROMPT, user_prompt)
     try:
+        print(raw)
         parsed = json.loads(raw)
-    except:
+    except Exception as e:
+        print(e)
+        return;
         m = re.search(r'(\{.*\})', raw, re.S)
         parsed = json.loads(m.group(1)) if m else None
 

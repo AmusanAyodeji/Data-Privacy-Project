@@ -14,7 +14,7 @@ client = OpenAI(
     api_key=OPENROUTER_KEY,
 )
 
-MODEL = "x-ai/grok-4.1-fast:free"
+MODEL = os.getenv("MODEL")
 
 
 def call_xai_compare(system_prompt: str, user_prompt: str) -> str:
